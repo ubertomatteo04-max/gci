@@ -1,0 +1,109 @@
+# ============================================================================
+#  MESH CONVERGENCE TOOLKIT - File di configurazione unico
+# ============================================================================
+#  Questo file e' letto SIA dalla macro Java (dentro STAR-CCM+) SIA dallo
+#  script Python di post-processing.
+#
+#  IMPORTANTE - limiti del parser Java:
+#  la macro Java usa un parser YAML minimale che supporta SOLO:
+#    - chiavi piatte:      chiave: valore
+#    - liste inline:       chiave: [a, b, c]
+#    - commenti con '#'
+#  NON usare indentazione/annidamento o liste multi-riga con '-'.
+# ============================================================================
+
+# ---------------------------------------------------------------------------
+# 1. IDENTIFICAZIONE DEL CASO
+# ---------------------------------------------------------------------------
+case_name: naca0012_2d          # usato nei nomi file di output
+dimension: 2D                    # "2D" oppure "3D" -> determina h = A^(1/2) o V^(1/3)
+
+# ---------------------------------------------------------------------------
+# 2. MESH: cosa scalare
+# ---------------------------------------------------------------------------
+# Nome dell'operazione di mesh, SOLO se il tuo .sim ne contiene piu' di una.
+# Nella stragrande maggioranza dei casi lascia vuoto: la macro trova da sola
+# l'unica Automated Mesh Operation presente nell'albero Operations.
+# Se ce ne sono di piu' e non compili questo campo, la macro si ferma e ti
+# elenca i nomi trovati, cosi' sai cosa scrivere qui.
+mesh_operation_name:
+
+# Base Size da testare, ordinati da COARSE a FINE (o viceversa: la macro
+# non se ne cura, ordina il Python).
+# REGOLA: il rapporto tra due base size consecutivi deve essere >= 1.3
+# (requisito Celik et al. 2008). Esempi di sequenze valide:
+#   fattore 1.3 : [0.02197, 0.0169, 0.013, 0.010]
+#   fattore 1.41: [0.02828, 0.02, 0.01414, 0.01]
+#   fattore 2.0 : [0.04, 0.02, 0.01]         (costoso in 3D: x8 celle)
+base_sizes: [0.02828, 0.02, 0.01414, 0.01]
+base_size_units: m               # unita' STAR-CCM+: "m", "mm", "in", ...
+
+# ---------------------------------------------------------------------------
+# 3. REPORT DA ESTRARRE (i nomi devono esistere in STAR-CCM+)
+# ---------------------------------------------------------------------------
+# Grandezze di interesse (QoI) su cui calcolare il GCI.
+# NON limitarti a una sola: la convergenza e' quantita'-dipendente.
+#
+# DUE MODALITA':
+#   1) ESPLICITA (consigliata) - elenchi i nomi esatti dei report:
+#        quantities: [Lift, Drag, Pressure Drop]
+#   2) AUTOMATICA - prende TUTTI i report della simulazione:
+#        quantities: ALL
+#      Comoda per non dover scrivere nulla, ma includera' anche eventuali
+#      report di servizio su cui il GCI non ha senso: avrai qualche colonna
+#      e qualche grafico in piu' da ignorare. I report ausiliari del toolkit
+#      (conteggio celle, somma volumi, y+, qualita') sono esclusi in automatico.
+quantities: [Lift, Drag, Pressure Drop]
+
+# Report ausiliari. Se non esistono, la macro prova a crearli
+# automaticamente; se anche questo fallisce scrive NaN e il Python
+# ripiega su 'domain_size' (vedi sotto).
+cell_count_report: GCI Cell Count          # Element Count report
+sum_cell_volume_report: GCI Sum Cell Volume # Sum report su field function "Volume"
+
+# Report opzionale di y+ (max o medio): serve a verificare che il
+# trattamento a parete NON cambi regime tra le mesh. Lascia vuoto se assente.
+yplus_report: YPlus Max
+
+# ---------------------------------------------------------------------------
+# 4. CALCOLO DI h (dimensione di cella rappresentativa)
+# ---------------------------------------------------------------------------
+# In 2D STAR-CCM+ estrude la mesh di uno spessore unitario: il field function
+# "Volume" restituisce Area * spessore. Indica qui lo spessore per convertire.
+two_d_thickness: 1.0
+
+# FALLBACK: se sum_cell_volume_report non e' disponibile, il Python calcola
+#   h = (domain_size / N)^(1/dim)
+# domain_size = volume del dominio [m^3] in 3D, area del dominio [m^2] in 2D.
+# Lascia 'null' per disattivare il fallback (verra' segnalato un errore).
+domain_size: null
+
+# ---------------------------------------------------------------------------
+# 5. ESECUZIONE
+# ---------------------------------------------------------------------------
+output_dir: grid_results         # relativa alla cartella del file .sim
+save_sim_per_mesh: false         # true = salva un .sim per ogni mesh (pesante!)
+clear_solution_between_runs: true
+max_steps: 0                     # 0 = usa i criteri di arresto gia' impostati
+export_plots: [Residuals]        # plot da esportare in CSV per mesh; [] per nessuno
+mesh_quality_check: true         # calcola metriche di qualita' mesh minime
+
+# ---------------------------------------------------------------------------
+# 6. PARAMETRI DELL'ANALISI GCI (usati solo dal Python)
+# ---------------------------------------------------------------------------
+gci_safety_factor: 1.25          # 1.25 con >=3 griglie, 3.0 con 2 griglie
+gci_threshold_percent: 3.0       # soglia di accettazione (rete di sicurezza)
+formal_order: 2.0                # ordine formale dello schema (clip di p)
+p_min: 0.5                       # sotto questo p e' considerato non fisico
+p_max: 4.0                       # sopra questo p e' considerato non fisico
+
+# Delta di progetto atteso, in % del valore baseline della QoI.
+# Serve per il confronto banda-GCI vs delta-DOE (vedi README, sezione 6).
+# Lascia 'null' se non ancora noto.
+target_delta_percent: 2.0
+
+# ---------------------------------------------------------------------------
+# 7. OUTPUT DEL POST-PROCESSING
+# ---------------------------------------------------------------------------
+plot_dpi: 150
+generate_markdown_report: true
